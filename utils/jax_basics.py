@@ -127,7 +127,7 @@ def mse_loss(
     # Step 1: Compute predictions using the linear() function from Exercise 1.1
     # Step 2: Compute MSE = mean((y_pred - y_true)^2)
     # HINT: Use jnp.mean() and jnp.square() or ** 2
-    raise NotImplementedError("EXERCISE 1.2: Implement MSE loss")
+    return jnp.mean(jnp.square(y_true - linear(params, x)))
 
 
 def compute_gradients(
@@ -148,7 +148,7 @@ def compute_gradients(
     # ---- EXERCISE 1.2b: Use jax.value_and_grad to get both loss and grads ----
     # HINT: jax.value_and_grad(loss_fn)(params, x, y_true) returns (loss, grads)
     #       where grads has the same pytree structure as params.
-    raise NotImplementedError("EXERCISE 1.2b: Use jax.value_and_grad")
+    return jax.value_and_grad(mse_loss)(params, x, y_true)
 
 
 # ============================================================================
@@ -157,14 +157,45 @@ def compute_gradients(
 #
 # GOAL: JIT-compile a full training step (forward + backward + parameter update).
 #
-# WHY JAX (vs. PyTorch torch.compile):
-#   - jax.jit compiles the entire function into a single XLA computation graph.
-#   - XLA fuses operations, eliminates intermediate buffers, and optimizes for
-#     the target hardware (Metal GPU on M4).
-#   - This is critical for PPO where the inner loop (compute advantages ->
-#     multiple minibatch updates) runs thousands of times. Without JIT, Python
-#     interpreter overhead dominates.
-#   - Unlike torch.compile (which has graph-break issues), jax.jit works
+# WHY JIT COMPILATION MATTERS:
+#
+#   Without JIT (eager mode — how normal Python runs):
+#     Each math operation (add, multiply, matmul, etc.) is sent to the GPU
+#     one at a time. Between every operation, control returns to Python,
+#     which decides what to do next. This back-and-forth is slow — imagine
+#     a chef who reads one line of a recipe, walks to the kitchen, does that
+#     one step, walks back to read the next line, and repeats.
+#
+#   With JIT (jax.jit):
+#     JAX traces your Python function ONCE to discover the full sequence of
+#     operations, then hands that entire sequence to the XLA compiler. XLA
+#     produces a single optimized program that runs directly on the GPU with
+#     no Python involvement. Benefits:
+#
+#     1. NO PYTHON OVERHEAD — the compiled function runs as native GPU code.
+#        Python is only involved on the very first call (to trace & compile).
+#
+#     2. OPERATION FUSION — XLA merges multiple small operations into fewer
+#        big ones. For example, instead of launching separate GPU kernels for
+#        (a) multiply weights by inputs, (b) add bias, (c) apply ReLU, XLA
+#        can fuse these into a single kernel, avoiding repeated memory reads.
+#
+#     3. MEMORY OPTIMIZATION — intermediate results that are only used once
+#        don't need to be written to GPU memory and read back. XLA keeps them
+#        in fast registers/cache instead, which can be 10-100x faster.
+#
+#     4. HARDWARE-SPECIFIC TUNING — XLA knows the exact hardware (e.g., GPU
+#        type, number of cores, memory layout) and tailors the compiled code
+#        accordingly — something Python-level code cannot do.
+#
+#   This matters enormously for training loops: a single training step might
+#   involve hundreds of operations (forward pass, loss, backward pass, param
+#   update). Without JIT, each of those hundreds of ops pays the Python
+#   overhead tax. With JIT, the entire step is one compiled GPU program.
+#
+# WHY JAX JIT (vs. PyTorch torch.compile):
+#   - Unlike torch.compile (which can hit "graph breaks" — places where it
+#     falls back to slow Python), jax.jit compiles the entire function
 #     reliably as long as the function is pure (no side effects).
 #
 # HINTS:
@@ -205,13 +236,15 @@ def train_step(
     #       new_params = jax.tree.map(lambda p, g: p - learning_rate * g, params, grads)
     #
     # After implementing, wrap this function with @jax.jit or call jax.jit(train_step)
-    raise NotImplementedError("EXERCISE 1.3: Implement a JIT-compilable training step")
+    loss, grad = compute_gradients(params, x, y_true)
+    new_params = jax.tree.map(lambda p, g: p -learning_rate * g, params, grad)
+    return (new_params, loss)
 
 
 # Create the JIT-compiled version.
 # ---- EXERCISE 1.3b: JIT-compile the train_step function ----
 # Uncomment the line below after implementing train_step:
-# train_step_jit = jax.jit(train_step)
+train_step_jit = jax.jit(train_step)
 
 
 # ============================================================================
@@ -258,7 +291,8 @@ def per_example_loss(
     # HINT: Use the linear() function but note x is now (in_dim,) not (batch, in_dim).
     #       You may need to reshape x: x[None, :] to add a batch dim, then squeeze.
     #       Or implement linear to handle 1D input directly.
-    raise NotImplementedError("EXERCISE 1.4: Implement per-example loss")
+    y_pred = linear(params, x)
+    return jnp.sum(jnp.square(y_pred - y_true))
 
 
 def batched_loss(
@@ -282,4 +316,4 @@ def batched_loss(
     #         - params: NOT batched (shared across all examples)
     #         - x_batch: batched along axis 0
     #         - y_batch: batched along axis 0
-    raise NotImplementedError("EXERCISE 1.4b: Use jax.vmap to vectorize per_example_loss")
+    return jax.vmap(per_example_loss, in_axes=(None, 0, 0))(params, x_batch, y_batch)
