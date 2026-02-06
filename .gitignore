@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# JAX/XLA cache
+__jit_cache__/
+
+# Checkpoints (can be large)
+checkpoints/
+
+# Logs
+logs/
+*.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Orbax checkpoint temp files
+*.orbax-checkpoint-tmp-*

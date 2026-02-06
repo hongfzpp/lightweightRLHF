@@ -1,0 +1,20 @@
+# JAX RLHF Learning Pipeline - Requirements
+# Target platform: Apple Silicon M4 (Metal backend)
+#
+# Installation:
+#   python3.11 -m venv .venv
+#   source .venv/bin/activate
+#   pip install jax jax-metal
+#   pip install -r requirements.txt
+#
+# For CUDA machines, replace jax-metal with: pip install jax[cuda12]
+
+jax>=0.4.30
+jax-metal>=0.1.0
+flax>=0.8.0
+optax>=0.2.0
+chex>=0.1.86
+orbax-checkpoint>=0.5.0
+datasets>=2.19.0
+transformers>=4.40.0
+pytest>=8.0.0
