@@ -72,38 +72,35 @@ class CausalSelfAttention(nn.Module):
         assert cfg.d_model % cfg.n_heads == 0, "d_model must be divisible by n_heads"
 
         # ---- EXERCISE 2.1: Implement multi-head causal self-attention ----
-        #
-        # Step 1: Project input to Q, K, V using nn.Dense
-        #   q = nn.Dense(features=cfg.d_model, name='q_proj')(x)   # (B, T, d_model)
-        #   k = nn.Dense(features=cfg.d_model, name='k_proj')(x)
-        #   v = nn.Dense(features=cfg.d_model, name='v_proj')(x)
-        #
-        # Step 2: Reshape to multi-head format
-        #   q = q.reshape(B, T, cfg.n_heads, head_dim).transpose(0, 2, 1, 3)  # (B, n_heads, T, head_dim)
-        #   (same for k, v)
-        #
-        # Step 3: Compute attention scores
-        #   attn_weights = (q @ k.transpose(0, 1, 3, 2)) / jnp.sqrt(head_dim)  # (B, n_heads, T, T)
-        #
-        # Step 4: Apply causal mask (lower triangular)
-        #   causal = jnp.tril(jnp.ones((T, T)))  # (T, T)
-        #   attn_weights = jnp.where(causal[None, None, :, :] == 0, -1e9, attn_weights)
-        #   If an additional mask is provided, apply it too:
-        #   if mask is not None: attn_weights = jnp.where(mask == 0, -1e9, attn_weights)
-        #
-        # Step 5: Softmax and optional dropout
-        #   attn_weights = jax.nn.softmax(attn_weights, axis=-1)
-        #   attn_weights = nn.Dropout(rate=cfg.dropout_rate)(attn_weights, deterministic=deterministic)
-        #
-        # Step 6: Weighted sum of values
-        #   attn_output = attn_weights @ v  # (B, n_heads, T, head_dim)
-        #
-        # Step 7: Reshape back and project
-        #   attn_output = attn_output.transpose(0, 2, 1, 3).reshape(B, T, C)
-        #   output = nn.Dense(features=cfg.d_model, name='out_proj')(attn_output)
-        #   return output
 
-        raise NotImplementedError(
-            "EXERCISE 2.1: Implement multi-head causal self-attention.\n"
-            "Follow the 7 steps in the comments above."
-        )
+        # Step 1: Project input to Q, K, V using nn.Dense
+        q = nn.Dense(features=cfg.d_model, name='q_proj')(x)   # (B, T, d_model)
+        k = nn.Dense(features=cfg.d_model, name='k_proj')(x)
+        v = nn.Dense(features=cfg.d_model, name='v_proj')(x)
+
+        # Step 2: Reshape to multi-head format
+        q = q.reshape(B, T, cfg.n_heads, head_dim).transpose(0, 2, 1, 3)
+        k = k.reshape(B, T, cfg.n_heads, head_dim).transpose(0, 2, 1, 3)
+        v = v.reshape(B, T, cfg.n_heads, head_dim).transpose(0, 2, 1, 3)
+
+        # Step 3: Compute attention scores
+        atten_weights = (q @ k.transpose(0, 1, 3, 2)) / jnp.sqrt(head_dim)
+
+        # Step 4: Apply causal mask (lower triangular)
+        casual = jnp.tril(jnp.ones((T, T)))
+        atten_weights = jnp.where(casual[None, None, :, :] == 0, -1e9, atten_weights)
+        if mask is not None:
+            atten_weights = jnp.where(mask == 0, -1e9, atten_weights)
+
+        # Step 5: Softmax and optional dropout
+        atten_weights = jax.nn.softmax(atten_weights, axis = -1)
+        atten_weights = nn.Dropout(rate=cfg.dropout_rate)(atten_weights, deterministic=deterministic)
+
+        # Step 6: Weighted sum of values
+        atten_output = atten_weights @ v
+
+        # Step 7: Reshape back and project
+        atten_output = atten_output.transpose(0, 2, 1, 3).reshape(B, T, C)
+        output = nn.Dense(features=cfg.d_model, name='out_proj')(atten_output)
+        return output
+
