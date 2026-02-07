@@ -62,24 +62,19 @@ class TransformerBlock(nn.Module):
         # Use the Pre-LN architecture (LayerNorm before each sub-layer):
         #
         # Step 1: Attention sub-layer with residual
-        #   residual = x
-        #   x = nn.LayerNorm()(x)
-        #   x = CausalSelfAttention(config=cfg)(x, mask=mask, deterministic=deterministic)
-        #   x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
-        #   x = x + residual
-        #
-        # Step 2: FFN sub-layer with residual
-        #   residual = x
-        #   x = nn.LayerNorm()(x)
-        #   x = nn.Dense(features=cfg.d_ff)(x)    # Expand to d_ff (4x d_model)
-        #   x = nn.gelu(x)                         # GELU activation
-        #   x = nn.Dense(features=cfg.d_model)(x)  # Project back to d_model
-        #   x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
-        #   x = x + residual
-        #
-        # return x
+        residual = x
+        x = nn.LayerNorm()(x)
+        x = CausalSelfAttention(config=cfg)(x, mask=mask, deterministic=deterministic)
+        x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
+        x = residual + x
 
-        raise NotImplementedError(
-            "EXERCISE 2.2: Implement the Transformer block.\n"
-            "Follow the Pre-LN pattern: LN -> Attention -> residual -> LN -> FFN -> residual."
-        )
+        # Step 2: FFN sub-layer with residual
+        residual = x
+        x = nn.LayerNorm()(x)
+        x = nn.Dense(features=cfg.d_ff)(x)
+        x = nn.gelu(x)
+        x = nn.Dense(features=cfg.d_model)(x)
+        x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
+        x = residual + x
+
+        return x

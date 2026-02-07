@@ -72,46 +72,34 @@ class GPT2LMHeadModel(nn.Module):
         cfg = self.config
         B, T = input_ids.shape
 
-        # ---- EXERCISE 2.3: Implement the GPT-2 forward pass ----
-        #
         # Step 1: Token and position embeddings
-        #   token_embed = nn.Embed(num_embeddings=cfg.vocab_size, features=cfg.d_model, name='token_embed')
-        #   pos_embed = self.param('pos_embed', nn.initializers.normal(stddev=0.02), (1, cfg.max_seq_len, cfg.d_model))
-        #
-        #   x = token_embed(input_ids)                  # (B, T, d_model)
-        #   x = x + pos_embed[:, :T, :]                 # Add positional embeddings (truncated to T)
-        #   x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
-        #
+        token_embed = nn.Embed(num_embeddings=cfg.vocab_size, features=cfg.d_model, name='token_embed')
+        pos_embed = self.param('pos_embed', nn.initializers.normal(stddev=0.02), (1, cfg.max_seq_len, cfg.d_model))
+
+        x = token_embed(input_ids)
+        x = x + pos_embed[:, :T, :]
+        x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
+
         # Step 2: Build combined attention mask (causal + padding)
-        #   causal_mask = jnp.tril(jnp.ones((T, T)))[None, None, :, :]  # (1, 1, T, T)
-        #   if attention_mask is not None:
-        #       pad_mask = attention_mask[:, None, None, :]               # (B, 1, 1, T)
-        #       mask = causal_mask * pad_mask
-        #   else:
-        #       mask = causal_mask
-        #
+        causal_mask = jnp.tril(jnp.ones((T, T)))[None, None, :, :]
+        if attention_mask is not None:
+            pad_mask = attention_mask[:, None, None, :]
+            mask = causal_mask * pad_mask
+        else:
+            mask = causal_mask
+
         # Step 3: Apply N transformer blocks
-        #   for i in range(cfg.n_layers):
-        #       x = TransformerBlock(config=cfg, name=f'block_{i}')(x, mask=mask, deterministic=deterministic)
-        #
+        for i in range(cfg.n_layers):
+            x = TransformerBlock(config=cfg, name=f'block_{i}')(x, mask=mask, deterministic=deterministic)
+
         # Step 4: Final LayerNorm
-        #   x = nn.LayerNorm()(x)  # (B, T, d_model)
-        #
+        x = nn.LayerNorm()(x)
+
         # Step 5: Language model head (weight tying with token embedding)
-        #   logits = x @ token_embed.embedding.T   # (B, T, vocab_size)
-        #   return logits
-        #
-        # NOTE on weight tying:
-        #   In GPT-2, the output projection shares weights with the input embedding.
-        #   This reduces parameter count and often improves performance.
-        #   Access the embedding matrix via: token_embed.embedding
-        #   (Flax Embed stores weights as .embedding attribute)
+        logits = x @ token_embed.embedding.T
+        return logits
 
-        raise NotImplementedError(
-            "EXERCISE 2.3: Implement the GPT-2 forward pass.\n"
-            "Follow the 5 steps: Embed -> Mask -> Blocks -> LN -> LM Head."
-        )
-
+    @nn.compact
     def get_hidden_states(
         self,
         input_ids: jax.Array,
@@ -134,13 +122,28 @@ class GPT2LMHeadModel(nn.Module):
         cfg = self.config
         B, T = input_ids.shape
 
-        # ---- EXERCISE 2.3b (Optional): Implement get_hidden_states ----
-        # This is identical to __call__ steps 1-4, just without step 5 (LM head).
-        # You can refactor __call__ to reuse this method.
+         # ---- EXERCISE 2.3: Implement the GPT-2 forward pass ----
         #
-        # If you haven't done this yet, that's fine — the reward model (Phase 4)
-        # will call this method, so come back to implement it then.
+        # Step 1: Token and position embeddings
+        token_embed = nn.Embed(num_embeddings=cfg.vocab_size, features=cfg.d_model, name = 'token_embed')
+        pos_embed = self.param('pos_embed', nn.initializers.normal(stddev=0.02), (1, cfg.max_seq_len, cfg.d_model))
 
-        raise NotImplementedError(
-            "EXERCISE 2.3b: Implement get_hidden_states (same as forward, minus LM head)."
-        )
+        x = token_embed(input_ids)
+        x = x + pos_embed[:, :T, :]
+        x = nn.Dropout(rate=cfg.dropout_rate)(x, deterministic=deterministic)
+
+        # Step 2: Build combined attention mask (causal + padding)
+        casual_mask = jnp.tril(jnp.ones((T, T)))[None, None, :, :]
+        if attention_mask is not None:
+            pad_mask = attention_mask[:, None, None, :]
+            mask = casual_mask * pad_mask
+        else:
+            mask = casual_mask
+
+        # Step 3: Apply N transformer blocks
+        for i in range(cfg.n_layers):
+            x = TransformerBlock(config=cfg, name=f'block_{i}')(x, mask=mask, deterministic=deterministic)
+        
+        x = nn.LayerNorm()(x)
+
+        return x
